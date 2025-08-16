@@ -36,16 +36,15 @@ export async function POST(req: NextRequest) {
   const encrypted_hash_raw = encryptAES(hashed, MERCHANT_KEY);
   const encrypted_hash = String(encrypted_hash_raw);
 
-  // Step 2: Build transaction sections
+  // Step 2: Build transaction sections (ALL CORRECTED)
   const txn_details = `${AGGREGATOR_ID}|${MERCHANT_ID}|${order_no}|${amountStr}|ETH|ETB|SALE|${SUCCESS_URL}|${FAIL_URL}|WEB`;
-  const pg_details = '||||';
-  const card_details = '|||||';
-  const cust_details = `${cust_name}||${email_id}|${mobile_no}|||Y||||`;
-  const bill_details = '|||||';
+  const pg_details = '|||';
+  const card_details = '||||';
+  const cust_details = `${cust_name}|${email_id}|${mobile_no}||Y`;
+  const bill_details = '||||';
   const ship_details = '||||||';
-  const item_details = '|||';
-  const upi_details = '';
-  const other_details = '';
+  const item_details = '||';
+  const upi_details = '||||'; // Removed the leading space
 
   const all_values = [
     txn_details,
@@ -56,34 +55,15 @@ export async function POST(req: NextRequest) {
     ship_details,
     item_details,
     upi_details,
-    other_details
   ].join('~');
 
   const encrypted_request_raw = encryptAES(all_values, MERCHANT_KEY);
   const encrypted_request = String(encrypted_request_raw);
 
-  // Safe HTML escaping for embedding into value attributes
-  function escapeHtml(s: string) {
-    return s
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
-  }
-
-  const html = `
-    <html>
-      <head><meta charset="utf-8" /></head>
-      <body onload="document.forms[0].submit()">
-        <form method="POST" action="https://uatcheckout.yagoutpay.com/ms-transaction-core-1-0/paymentRedirection/checksumGatewayPage">
-          <input type="hidden" name="me_id" value="${escapeHtml(MERCHANT_ID)}" />
-          <input type="hidden" name="merchant_request" value="${escapeHtml(encrypted_request)}" />
-          <input type="hidden" name="hash" value="${escapeHtml(encrypted_hash)}" />
-        </form>
-      </body>
-    </html>
-  `;
-
-  return new NextResponse(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
+  return NextResponse.json({
+    url: 'https://uatcheckout.yagoutpay.com/ms-transaction-core-1-0/paymentRedirection/checksumGatewayPage',
+    me_id: MERCHANT_ID,
+    merchant_request: encrypted_request,
+    hash: encrypted_hash,
+  });
 }

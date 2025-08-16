@@ -5,8 +5,13 @@ const IV = Buffer.from('0123456789abcdef');
 
 function pad(text: string) {
   const size = 16;
-  const pad = size - (text.length % size);
-  return text + String.fromCharCode(pad).repeat(pad);
+  const padLength = size - (text.length % size);
+  // If the text is already a multiple of the block size, zero padding doesn't add a full block of padding.
+  if (padLength === 0) {
+    return text;
+  }
+  // Pad with null characters (\x00)
+  return text + '\x00'.repeat(padLength);
 }
 
 export function encryptAES(text: string, base64Key: string) {
