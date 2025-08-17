@@ -2,7 +2,7 @@ import { encryptAES, sha256Hex } from '@/utils/encryption';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(req: NextRequest) {
-  // Validate and parse JSON
+  console.log('\n--- New Payment Request Received (Final Attempt) ---');
   let body: any;
   try {
     body = await req.json();
@@ -12,31 +12,48 @@ export async function POST(req: NextRequest) {
 
   const { amount, cust_name, email_id, mobile_no } = body ?? {};
   if (!amount || !cust_name || !email_id || !mobile_no) {
-    return NextResponse.json({ error: 'Missing required fields: amount, cust_name, email_id, mobile_no' }, { status: 400 });
+    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
   }
 
-  // Validate environment variables
   const MERCHANT_ID = process.env.MERCHANT_ID;
   const MERCHANT_KEY = process.env.MERCHANT_KEY;
   const SUCCESS_URL = process.env.SUCCESS_URL;
   const FAIL_URL = process.env.FAIL_URL;
+  
   if (!MERCHANT_ID || !MERCHANT_KEY || !SUCCESS_URL || !FAIL_URL) {
-    return NextResponse.json({ error: 'Server misconfiguration: missing merchant credentials or URLs' }, { status: 500 });
+    return NextResponse.json({ error: 'Server misconfiguration' }, { status: 500 });
   }
 
   const AGGREGATOR_ID = 'yagout';
-  const order_no = 'ORDER_' + Date.now();
+  const order_no = 'TEST' + Math.floor(Math.random() * 100000);
+  const amountStr = Number(amount).toFixed(2);
 
-  // Normalize amount to string with two decimals (gateway may expect fixed format)
-  const amountStr = typeof amount === 'number' ? amount.toFixed(2) : String(amount);
+  // --- HASH GENERATION (As per the new PDF) ---
+  console.log('\n--- Preparing HASH (New PDF Method) ---');
+  // 1. Gather ONLY the 5 required parameters for the hash.
+  const hashParams: { [key: string]: string } = {
+    amount: amountStr,
+    currency: 'ETB',
+    customer_email: email_id,
+    merchant_id: MERCHANT_ID,
+    order_id: order_no,
+  };
+  // 2. Sort alphabetically by key.
+  const sortedHashKeys = Object.keys(hashParams).sort();
+  // 3. Format into a query string.
+  const hashQueryString = sortedHashKeys
+    .map(key => `${key}=${hashParams[key]}`)
+    .join('&');
+  // 4. Append the Secret Key.
+  const stringToHash = hashQueryString + MERCHANT_KEY;
+  console.log(`[Hash] String to hash: "${hashQueryString}...[SECRET_KEY_APPENDED]"`);
+  // 5 & 6. Calculate SHA256 hash.
+  const finalHash = sha256Hex(stringToHash);
+  console.log(`[Hash] Final Hash: ${finalHash}`);
 
-  // Step 1: Create hash
-  const hash_input = `${MERCHANT_ID}~${order_no}~${amountStr}~ETH~ETB`;
-  const hashed = sha256Hex(hash_input);
-  const encrypted_hash_raw = encryptAES(hashed, MERCHANT_KEY);
-  const encrypted_hash = String(encrypted_hash_raw);
 
-  // Step 2: Build transaction sections (ALL CORRECTED)
+  // --- MERCHANT_REQUEST GENERATION (As per original docs) ---
+  console.log('\n--- Preparing Encrypted Request Body (Old Method) ---');
   const txn_details = `${AGGREGATOR_ID}|${MERCHANT_ID}|${order_no}|${amountStr}|ETH|ETB|SALE|${SUCCESS_URL}|${FAIL_URL}|WEB`;
   const pg_details = '|||';
   const card_details = '||||';
@@ -44,26 +61,26 @@ export async function POST(req: NextRequest) {
   const bill_details = '||||';
   const ship_details = '||||||';
   const item_details = '||';
-  const upi_details = '||||'; // Removed the leading space
+  const upi_details = '||||';
 
   const all_values = [
-    txn_details,
-    pg_details,
-    card_details,
-    cust_details,
-    bill_details,
-    ship_details,
-    item_details,
-    upi_details,
+    txn_details, pg_details, card_details, cust_details,
+    bill_details, ship_details, item_details, upi_details,
   ].join('~');
 
-  const encrypted_request_raw = encryptAES(all_values, MERCHANT_KEY);
-  const encrypted_request = String(encrypted_request_raw);
+  const encrypted_request = encryptAES(all_values, MERCHANT_KEY);
 
-  return NextResponse.json({
+  // --- FINAL PAYLOAD ---
+  const responsePayload = {
     url: 'https://uatcheckout.yagoutpay.com/ms-transaction-core-1-0/paymentRedirection/checksumGatewayPage',
     me_id: MERCHANT_ID,
     merchant_request: encrypted_request,
-    hash: encrypted_hash,
+    hash: finalHash,
+  };
+
+  console.log('\n--- Final Payload Sent to Gateway ---', {
+      ...responsePayload,
+      merchant_request: '...ENCRYPTED...',
   });
+  return NextResponse.json(responsePayload);
 }
