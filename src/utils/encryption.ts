@@ -1,12 +1,11 @@
 import { Buffer } from 'buffer';
 import crypto from 'crypto';
 
-// Correctly define the IV using 'binary' encoding to match PHP's raw string behavior.
+
 const IV = Buffer.from('0123456789abcdef', 'latin1');
 const ALGORITHM = 'aes-256-cbc';
 const BLOCK_SIZE = 16;
 
-// This function replicates the manual PKCS#7 padding from the PHP sample.
 function pkcs7Pad(buffer: Buffer): Buffer {
   const padSize = BLOCK_SIZE - (buffer.length % BLOCK_SIZE);
   console.log(`[encryptAES] Buffer length: ${buffer.length}, Pad size: ${padSize}`);
