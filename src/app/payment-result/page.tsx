@@ -3,6 +3,7 @@
 import '@/style/globals.css';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 const SuccessDisplay = () => (
   <>
@@ -33,23 +34,23 @@ const ErrorDisplay = () => (
 
 export default function PaymentResultPage() {
   const searchParams = useSearchParams();
-  const status = searchParams.get('status');
+  const [status, setStatus] = useState<string | null>(null);
 
-  const renderContent = () => {
-    switch (status) {
-      case 'success':
-        return <SuccessDisplay />;
-      case 'failed':
-        return <FailDisplay />;
-      default:
-        return <ErrorDisplay />;
+  useEffect(() => {
+    const urlStatus = searchParams.get('status');
+    if (urlStatus) {
+      setStatus(urlStatus);
+    } else {
+      setStatus('error');
     }
-  };
+  }, [searchParams]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 text-center p-4">
       <div className="bg-white p-10 rounded-lg shadow-md">
-        {renderContent()}
+        {status === 'success' && <SuccessDisplay />}
+        {status === 'failed' && <FailDisplay />}
+        {status === 'error' && <ErrorDisplay />}
         <Link href="/checkout">
           <span className="inline-block mt-6 px-6 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 cursor-pointer">
             {status === 'success' ? 'Make Another Payment' : 'Try Again'}

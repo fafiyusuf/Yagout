@@ -36,27 +36,17 @@ function generateHash(
   key: string
 ) {
   const hashInput = `${merchantId}~${orderNo}~${amount}~${currencyFrom}~${currencyTo}`;
-  console.log("[Hash] Input for SHA256:", hashInput);
-
   const sha256Hash = crypto
     .createHash("sha256")
     .update(hashInput, "utf8")
     .digest("hex");
-  console.log("[Hash] SHA256:", sha256Hash);
-
-  const encryptedHash = encryptAES(sha256Hash, key);
-  console.log("[Hash] Encrypted Hash:", encryptedHash);
-
-  return encryptedHash;
+  return encryptAES(sha256Hash, key);
 }
 
 export async function POST(req: NextRequest) {
-  console.log("\n--- Payment Request Received ---");
-
   let body: any;
   try {
     body = await req.json();
-    console.log("[Request Body]", body);
   } catch (err) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
@@ -113,11 +103,7 @@ export async function POST(req: NextRequest) {
     otherDetails,
   ].join("~");
 
-  console.log("[Transaction String]", allValues);
-
   const encryptedRequest = encryptAES(allValues, MERCHANT_KEY);
-  console.log("[Encrypted Request]", encryptedRequest);
-
   const hash = generateHash(
     MERCHANT_ID,
     order_no,
@@ -133,11 +119,6 @@ export async function POST(req: NextRequest) {
     merchant_request: encryptedRequest,
     hash: hash,
   };
-
-  console.log("[Final Payload]", {
-    ...responsePayload,
-    merchant_request: "...ENCRYPTED...",
-  });
 
   return NextResponse.json(responsePayload);
 }
