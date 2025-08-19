@@ -35,6 +35,7 @@ const ErrorDisplay = () => (
 export default function PaymentResultPage() {
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<string | null>(null);
+  const [details, setDetails] = useState<{ orderId?: string; txnId?: string; amount?: string; currency?: string; time?: string; message?: string; code?: string }>({});
 
   useEffect(() => {
     const urlStatus = searchParams.get('status');
@@ -43,14 +44,59 @@ export default function PaymentResultPage() {
     } else {
       setStatus('error');
     }
+    setDetails({
+      orderId: searchParams.get('orderId') || undefined,
+      txnId: searchParams.get('txnId') || undefined,
+      amount: searchParams.get('amount') || undefined,
+      currency: searchParams.get('currency') || undefined,
+      time: searchParams.get('time') || undefined,
+      message: searchParams.get('message') || undefined,
+      code: searchParams.get('code') || undefined,
+    });
   }, [searchParams]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 text-center p-4">
-      <div className="bg-white p-10 rounded-lg shadow-md">
+      <div className="bg-white p-10 rounded-lg shadow-md max-w-xl w-full">
         {status === 'success' && <SuccessDisplay />}
         {status === 'failed' && <FailDisplay />}
         {status === 'error' && <ErrorDisplay />}
+
+        {(status === 'success' || status === 'failed') && (
+          <div className="text-left mt-6 space-y-2 text-sm text-gray-700">
+            {details.message && (
+              <div>
+                <span className="font-medium text-gray-900">Message:</span> {decodeURIComponent(details.message)}
+              </div>
+            )}
+            {details.code && (
+              <div>
+                <span className="font-medium text-gray-900">Code:</span> {details.code}
+              </div>
+            )}
+            {details.orderId && (
+              <div>
+                <span className="font-medium text-gray-900">Order #:</span> {details.orderId}
+              </div>
+            )}
+            {details.txnId && (
+              <div>
+                <span className="font-medium text-gray-900">Transaction ID:</span> {details.txnId}
+              </div>
+            )}
+            {(details.amount || details.currency) && (
+              <div>
+                <span className="font-medium text-gray-900">Amount:</span> {details.amount}
+                {details.currency ? ` ${details.currency}` : ''}
+              </div>
+            )}
+            {details.time && (
+              <div>
+                <span className="font-medium text-gray-900">Date & Time:</span> {details.time}
+              </div>
+            )}
+          </div>
+        )}
         <Link href="/checkout">
           <span className="inline-block mt-6 px-6 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 cursor-pointer">
             {status === 'success' ? 'Make Another Payment' : 'Try Again'}

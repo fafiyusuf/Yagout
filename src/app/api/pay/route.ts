@@ -3,8 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 const MERCHANT_ID = process.env.MERCHANT_ID ?? "";
 const MERCHANT_KEY = process.env.MERCHANT_KEY ?? "";
-const SUCCESS_URL = process.env.SUCCESS_URL ?? "";
-const FAIL_URL = process.env.FAIL_URL ?? "";
+const SUCCESS_URL_ENV = process.env.SUCCESS_URL ?? "";
+const FAIL_URL_ENV = process.env.FAIL_URL ?? "";
 const AGGREGATOR_ID = "yagout";
 const IV = "0123456789abcdef";
 
@@ -61,6 +61,29 @@ export async function POST(req: NextRequest) {
 
   const order_no = "TEST" + Math.floor(Math.random() * 100000);
   const amountStr = Number(amount).toFixed(2);
+
+  // Build absolute callback URLs
+  const baseOrigin = (() => {
+    try {
+      return req.nextUrl.origin;
+    } catch {
+      return "http://localhost:3000";
+    }
+  })();
+
+  const toAbsolute = (value: string, fallbackPath: string) => {
+    try {
+      const u = new URL(value);
+      return u.toString();
+    } catch {
+      // treat as path
+      const abs = new URL(value || fallbackPath, baseOrigin);
+      return abs.toString();
+    }
+  };
+
+  const SUCCESS_URL = toAbsolute(SUCCESS_URL_ENV, "/api/callback/success");
+  const FAIL_URL = toAbsolute(FAIL_URL_ENV, "/api/callback/fail");
 
   // Transaction details
   const txnDetails = [

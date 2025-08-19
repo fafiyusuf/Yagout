@@ -1,51 +1,85 @@
-This project is a basic implementation of a payment gateway integration within a Next.js application. It allows a user to enter payment details, which are then securely transmitted to a payment provider. The application handles the success and failure callbacks from the provider and displays the result to the user.
+YagoutPay Next.js demo integrating checkout, payment initialization, and callback handling. It submits encrypted payment requests to YagoutPay using provided merchant credentials and redirects back to a result page with rich status details.
 
 ### How It Works
 
-The payment flow consists of the following steps:
+Current flow
 
-1.  **Checkout**: The user fills out a form on the `/checkout` page with their name, email, mobile number, and the amount to be paid.
-2.  **API Request**: Upon submission, the frontend sends a POST request to the `/api/pay` endpoint with the form data.
-3.  **Payload Encryption**: The backend API receives the request, generates a unique order number, and creates a payload. This payload is then encrypted using AES-256-CBC, and a security hash is generated to ensure data integrity.
-4.  **Redirection to Payment Gateway**: The API responds with the encrypted payload and the payment gateway's URL. The frontend then dynamically creates a form and automatically submits it, redirecting the user to the payment gateway to complete the payment.
-5.  **Callback Handling**: After the payment is processed, the payment gateway sends a POST request to one of the callback URLs (`/api/callback/success` or `/api/callback/fail`).
-6.  **Displaying Results**: The callback routes redirect the user to the `/payment-result` page, which displays a success or failure message based on the outcome of the transaction.
+1) Checkout: `/checkout` collects name, email, phone, amount.
+2) Initialize payment: Frontend calls `/api/pay`.
+	- Server generates `order_no`, builds request blocks, encrypts with AES‑256‑CBC, and creates a SHA‑256 hash (as required by YagoutPay).
+	- Responds with `gatewayUrl` and fields for a form auto‑post to YagoutPay.
+3) Gateway: User completes payment on YagoutPay.
+4) Callbacks: YagoutPay hits our success/fail route handlers (`/api/callback/success` or `/api/callback/fail`) via POST (and GET supported).
+	- We build a safe absolute redirect using base URL (handles missing Host headers) and 303 redirect the browser to `/payment-result`.
+	- We forward useful details (orderId, txnId, amount, currency, message, code, time) as query params when available.
+5) Result page: `/payment-result` shows success/fail and displays the forwarded details.
+6) Root redirect: visiting `/` auto‑redirects to `/checkout`.
 
 ### Project Structure
 
 -   `src/app/checkout/page.tsx`: The main page where the user initiates the payment.
 -   `src/app/api/pay/route.ts`: The backend endpoint that handles payment requests, encryption, and redirection.
--   `src/app/api/callback/success/routes.ts`: The callback endpoint for successful payments.
--   `src/app/api/callback/fail/routes.ts`: The callback endpoint for failed payments.
+-   `src/app/api/callback/success/route.ts`: Success callback (POST/GET). Builds absolute redirects and forwards details to the result page.
+-   `src/app/api/callback/fail/route.ts`: Fail callback (POST/GET). Same as above for failures.
+-   `src/app/page.tsx`: Redirects root `/` to `/checkout`.
 -   `src/app/payment-result/page.tsx`: The page that displays the final payment status to the user.
 -   `src/style/globals.css`: Global styles for the application.
 
 ### Configuration
 
-To run this project, you need to set up the following environment variables. Create a `.env.local` file in the root of the project and add the following:
+Configuration
+
+Create a `.env.local` file in the project root:
 
 ```
 MERCHANT_ID=your_merchant_id
-MERCHANT_KEY=your_merchant_key
+MERCHANT_KEY=your_merchant_key_base64
 SUCCESS_URL=/api/callback/success
 FAIL_URL=/api/callback/fail
 BASE_URL=http://localhost:3000
 ```
 
--   `MERCHANT_ID` and `MERCHANT_KEY`: Your credentials provided by the payment gateway.
+-   `MERCHANT_ID` and `MERCHANT_KEY`: Merchant credentials from YagoutPay. Key must be base64‑encoded as per gateway spec.
 -   `SUCCESS_URL` and `FAIL_URL`: The callback URLs for the application.
 -   `BASE_URL`: The base URL of your application.
 
-### What's Missing
+Notes:
+- The app normalizes callback URLs to absolute (using `BASE_URL` or request origin), preventing Invalid URL errors when Host headers are missing.
+- YagoutPay may still show their result page briefly unless you configure a separate Return URL and enable auto‑redirect in their dashboard.
 
-This project is a simplified demonstration and lacks several features required for a production-ready application:
+SDK status and what’s next
 
--   **Database Integration**: There is no database to store transaction records, customer information, or order details.
--   **User Authentication**: The application does not have a user management system.
--   **Enhanced Security**: The encryption uses a hardcoded Initialization Vector (IV), which is not secure. A unique IV should be generated for each encryption.
--   **Robust Error Handling**: The error handling is minimal. A production system would require more comprehensive logging and user-friendly error messages.
--   **Input Validation**: There is a lack of thorough server-side validation for the incoming data.
--   **Automated Tests**: The project does not include any unit or integration tests.
+Done in this repo (usable reference for SDK):
+- Build encrypted request and hash using provided merchant credentials.
+- Post to YagoutPay’s gateway with generated order number and amount.
+- Handle success/fail callbacks robustly (POST/GET), construct absolute redirects, and forward key details to UI.
+- Provide a simple checkout UI and a result page that shows message/reason and IDs.
+
+Next steps for the SDK (server‑side library):
+- Public API
+	- `init(config)`: accept merchantId, merchantKey, baseUrl, returnUrl, notify URLs, env.
+	- `createPayment(input)`: build encrypted payload + hash; return `gatewayUrl` + `formFields` for auto‑post.
+	- `verifyCallback(payload)`: verify signatures/hashes from YagoutPay; return normalized result.
+- Types and validation
+	- Strong TypeScript types for inputs/outputs; runtime validation (zod) for configs and payloads.
+- Security
+	- Keep keys server‑only; never expose merchantKey to the browser.
+	- Consider unique IV per request if YagoutPay spec allows (current demo uses fixed IV provided by spec).
+- Configurability
+	- Allow integrators to set their own return_url (browser) and notify/callback URLs (server) separately.
+- Docs & examples
+	- Provide a Next.js example (this repo) showing form auto‑post and callback handling.
+	- Add examples for Express/NestJS.
+- Tests
+	- Unit tests for encryption/hash and callback verification.
+	- Integration tests with recorded fixtures.
+
+What’s left to make this production‑ready (app side):
+- Persist orders and transaction status in a database; reconcile on callbacks (idempotent updates).
+- Server‑side verification of callback signatures before trusting status.
+- Input validation on `/api/pay` (amount ranges, required fields, email/phone formats).
+- Better error handling and structured logging.
+- Optionally support a separate user Return URL to skip gateway receipt (if supported), with 0s auto‑redirect.
 
 ## Getting Started
 
@@ -61,4 +95,4 @@ pnpm dev
 bun dev
 ```
 
-Open [http://localhost:3000/checkout](http://localhost:3000/checkout) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) — it redirects to `/checkout`.
